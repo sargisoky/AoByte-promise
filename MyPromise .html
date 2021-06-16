@@ -49,11 +49,11 @@
 
             static all(values) {
                 if (values.length === 0) {
-                    return MyPromise.resolve([]);
+                    return CustomPromise.resolve([]);
                 }
                 const [first, ...rest] = values;
 
-                return MyPromise.resolve(first).then(firstResult => {
+                return CustomPromise.resolve(first).then(firstResult => {
                     return all(rest).then(restResults => {
                         return [firstResult, ...restResults];
                     });
