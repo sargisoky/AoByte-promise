@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Priomise</title>
+</head>
+
+<body>
+
+    <script type="text/javascript">
+
+        const STATE = {
+            PENDING: 'PENDING',
+            FULFILLED: 'FULFILLED',
+            REJECTED: 'REJECTED',
+        }
+
+        class CustomPromise {
+            constructor(handler) {
+                this.status = STATE.PENDING;
+                this.onFulfilledCallbacks = [];
+                this.onRejectedCallbacks = [];
+
+                const resolve = value => {
+                    if (this.status === STATE.PENDING) {
+                        this.status = STATE.FULFILLED;
+                        this.value = value;
+                        this.onFulfilledCallbacks.forEach(fn => fn(value));
+                    }
+                };
+
+                const reject = value => {
+                    if (this.status === STATE.PENDING) {
+                        this.status = STATE.REJECTED;
+                        this.value = value;
+                        this.onRejectedCallbacks.forEach(fn => fn(value));
+                    }
+                };
+
+                try {
+                    handler(resolve, reject);
+                } catch (err) {
+                    reject(err);
+                }
+            }
+
+
+            static all(values) {
+                if (values.length === 0) {
+                    return MyPromise.resolve([]);
+                }
+                const [first, ...rest] = values;
+
+                return MyPromise.resolve(first).then(firstResult => {
+                    return all(rest).then(restResults => {
+                        return [firstResult, ...restResults];
+                    });
+                });
+            }
+
+            then(onFulfilled, onRejected) {
+                return new CustomPromise((resolve, reject) => {
+                    if (this.status === STATE.PENDING) {
+                        this.onFulfilledCallbacks.push(() => {
+                            try {
+                                const fulfilledFromLastPromise = onFulfilled(this.value);
+                                if (fulfilledFromLastPromise instanceof CustomPromise) {
+                                    fulfilledFromLastPromise.then(resolve, reject);
+                                } else {
+                                    resolve(fulfilledFromLastPromise);
+                                }
+                            } catch (err) {
+                                reject(err);
+                            }
+                        });
+                        this.onRejectedCallbacks.push(() => {
+                            try {
+                                const rejectedFromLastPromise = onRejected(this.value);
+                                if (rejectedFromLastPromise instanceof CustomPromise) {
+                                    rejectedFromLastPromise.then(resolve, reject);
+                                } else {
+                                    reject(rejectedFromLastPromise);
+                                }
+                            } catch (err) {
+                                reject(err);
+                            }
+                        });
+                    }
+
+                    if (this.status === STATE.FULFILLED) {
+                        try {
+                            const fulfilledFromLastPromise = onFulfilled(this.value);
+                            if (fulfilledFromLastPromise instanceof CustomPromise) {
+                                fulfilledFromLastPromise.then(resolve, reject);
+                            } else {
+                                resolve(fulfilledFromLastPromise);
+                            }
+                        } catch (err) {
+                            reject(err);
+                        }
+
+                    }
+
+                    if (this.status === STATE.REJECTED) {
+                        try {
+                            const rejectedFromLastPromise = onRejected(this.value);
+                            if (rejectedFromLastPromise instanceof CustomPromise) {
+                                rejectedFromLastPromise.then(resolve, reject);
+                            } else {
+                                reject(rejectedFromLastPromise);
+                            }
+                        } catch (err) {
+                            reject(err);
+                        }
+                    }
+                });
+
+            }
+            catch(onRejected) {
+                return this.then(null, onRejected);
+            }
+            finally(callbackFunc) {
+                return this.then(callbackFunc, callbackFunc)
+            }
+        }
+
+        function ajax(url, { type = "GET", headers = {}, data } = {}) {
+
+            try {
+                const types = ["GET", "POST", "PUT", "PATCH", "DELETE"];
+                const typeLoc = types.find((typeLoc) => typeLoc === type);
+
+                if (!typeLoc) throw new Error("config type is wrong");
+
+                urlValidation(url);
+            } catch (e) {
+                return new CustomPromise((resolve, reject) => {
+                    reject(e.message);
+                });
+            }
+
+            function urlValidation(url) {
+                url = new URL(url);
+                if (url.protocol !== "https:" && url.protocol !== "http:") {
+                    throw new Error("url is wrong");
+                }
+
+                // check is in the end have country code
+                const regex = /\.([a-z]{2,3})\/?$/g;
+                if (!url.host.match(regex)) {
+                    throw new Error("url is wrong");
+                }
+            }
+
+            return new CustomPromise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open(type, url);
+                xhr.responseType = responseType;
+
+                for (let name of Object.keys(headers)) {
+                    xhr.setRequestHeader(name, headers[name]);
+                }
+
+                if (data) {
+                    xhr.send(JSON.stringify(data));
+                } else {
+                    xhr.send();
+                }
+
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        resolve(xhr.response);
+                    } else {
+                        reject(xhr.status);
+                    }
+                };
+                xhr.onerror = () => {
+                    reject("Network error");
+                };
+            });
+        }
+    </script>
+</body>
+
+</html>
